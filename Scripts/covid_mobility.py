@@ -136,7 +136,7 @@ def add_graph(location, urg, typ_consult, google, typ_poi):
     )
 
     fig.update_layout(
-            width = 800,
+            width = 1000,
             height = 800,
     )
 
