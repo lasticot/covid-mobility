@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
+# %%
+from datetime import date
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,9 +11,14 @@ import streamlit as st
 import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
-
+# %%
 # from .modules.create_graph import add_graph
 
+DATES_CONF1 = ['2020-03-17', '2020-05-11']
+DATE_CONF2 = ['2020-10-30', '2020-12-15']
+DATE_CONF3 = ['2020-10-30', '2020-12-15']
+
+# %%
 @st.cache
 def load_urgences():
     global dep_reg
@@ -22,36 +28,24 @@ def load_urgences():
     # grouper par département (diviser par  2, car le fichier contient par classe d'âge et une ligne de total)
     urg = urg.groupby(['date', 'dep'], as_index=False).agg(lambda x : (x/2).sum())
     urg.set_index('date', inplace=True)
-    # Mettre les départements en colonnes pour obtenir des time series
-    urg = urg.pivot(columns='dep', values=['pass', 'acte'])
-    # resample par semaine
-    urg_w = urg.resample('W-MON').mean()
-    # Moyenne mobile sur 7 jours
-    urg_mm = urg[['pass', 'acte']].rolling(7).mean()
-    return urg_mm
+    return urg
 
+# %%
 @st.cache
 def load_google():
     global dep_reg
-    google = pd.read_csv('../data/Region_Mobility_Report_CSVs/2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14],
+    google = pd.read_csv('../data/2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13],
                         parse_dates=['date'], infer_datetime_format=True, dayfirst=True)
     # suppression des colonnes inutiles
     google.drop(['country_region_code', 'country_region', 'sub_region_1', 'metro_area'], axis=1, inplace = True)
-    google.columns = ['dep', 'date', 'retail', 'grocery', 'parks', 'transit', 'work', 'residential']
+    google.columns = ['dep', 'date', 'retail', 'grocery', 'parks', 'transit', 'workplaces', 'residential']
     google.set_index('date', inplace=True)
     # remplacer les noms de départements par les numéros
     google['date'] = google.index
     temp = google.merge(dep_reg, how='left', left_on='dep', right_on='nom_dep', validate='many_to_one')
     temp.drop(['dep', 'Région', 'departement', 'nom_dep'], axis=1, inplace=True)
     temp.set_index('date', inplace=True)
-    temp.head()
-    # Mettre les départements en colonnes
-    google = temp[temp['num_dep'].notna()].pivot(columns='num_dep', values=['retail', 'grocery', 'parks', 'transit', 'work', 'residential'])
-    # resample par semaine
-    google_w = google.resample('W-MON').mean()
-    # Moyenne mobile sur 7 jours
-    google_mm = google.rolling(7).mean()
-    return google
+    return temp
 
 @st.cache
 def load_apple():
@@ -61,117 +55,152 @@ def load_apple():
     apple = apple[apple.country == 'France'].copy()
     # unpivot car les dates sont en colonnes
     apple = apple.melt(id_vars=['geo_type', 'region', 'transportation_type', 'alternative_name', 'sub-region', 'country'], var_name='date', value_name='mobility' )
-    # pivot les modes de transportations pour qu'ils soient en colonne
-    apple = apple.pivot(index=['geo_type', 'region', 'alternative_name', 'sub-region', 'country', 'date'], columns='transportation_type', values ='mobility')
     apple.reset_index(inplace=True)
     apple.date = pd.to_datetime(apple.date, infer_datetime_format=True, dayfirst=True)
-    apple['region'].unique()
     # on trim la mention 'Region' et on françise les noms anglais
     apple['region'] = apple['region'].str.rsplit(' Region', 1, False).str.get(0)
     apple['region'].replace({'Lower Normandy':'Basse Normandie', 'Upper Normany':'Haute Normandie', 'Burgundy':'Bourgogne', 'Corsica':'Corse','Brittany':'Bretagne', 'Lower':'Basse', 'Upper':'Haute', 'Picardy':'Picardie'}, inplace=True)
     # date en index
     apple.set_index('date', inplace=True)
     # regions en colonnes et suppression des autres colonnes géographiques
-    temp = apple.pivot(columns='region', values=['driving', 'transit', 'walking'])
-    apple = temp.copy()
-    # resample par semaine
-    apple_w = apple.resample('W-MON').mean()
-    # moyenne mobile sur 7 jours
-    apple_mm = apple.rolling(7).mean()
     return apple
 
 # ### Préparation du fichier tests
 # test = pd.read_csv('/data/tests.csv', delimiter=';', dtype={0:'object'}, parse_dates=['jour'], infer_datetime_format=True, dayfirst=True)
 
-
+# %%
 @st.cache
 def load_regions():
     # Liste des départements et régions
-    dep = pd.read_html('https://www.regions-departements-france.fr/')
-    dep_reg = dep[3]
-    dep_reg['departement'] = dep_reg['N°'] + ' - ' + dep_reg['Département']
-    dep_reg.rename(columns={'Département':'nom_dep'}, inplace=True)
-    dep_reg.rename(columns={'N°':'num_dep'}, inplace=True)
+    dep_reg = pd.read_csv('../data/dep_reg.csv')
     return dep_reg
 
-def add_graph(location, urg_mm, google):
+# %%
+@st.cache
+def load_confinements():
+    conf_dates = pd.read_excel('../data/confinement_dates.xlsx', engine='openpyxl', dtype={'Dep': str},  
+                            parse_dates=[1,2,3,4,5,6]) 
+    conf_dates.set_index('Dep', inplace=True)
+    return conf_dates
+# %%
+
+def add_graph(location, urg, typ_consult, google, typ_poi):
+    global urg_labels, poi_labels, loc_labels, conf_dates
+
+    conf_dates = load_confinements()
+
+    urg_title, = f"{urg_labels[typ_consult]} - {loc_labels[location]} <br> moyenne mobile sur 7 jours",
+    google_title, = f"Données de fréquentation pour '{poi_labels[typ_poi]}' - {loc_labels[location]}",
+    print(urg_title)
+    print(google_title)
+
     fig = make_subplots(rows=2, cols=1,
                     shared_xaxes=True,
                     vertical_spacing=0.05,
-                    subplot_titles=['Données Covid', 'Google Mobility'])
+                    subplot_titles=[urg_title, google_title])
+ 
+    # calcul de la moyenne mobile à la location choisie
+    urg_mm = urg[urg.dep == loc].rolling(7).mean()
 
     fig.add_scatter(
-        name='Actes SOS Médecin', 
-        x = urg_mm['acte'][location].index,
-        y = urg_mm['acte'][location],
+        name=urg_labels[typ_consult], 
+        x = urg_mm.index,
+        y = urg_mm[typ_consult],
+        showlegend=False,
         row=1, col=1,
-        marker_colorscale='Viridis'
+    )
 
+    # ajoute de la moyenne mobile pour les donnés de mobilité
+    google_mm = google[google.num_dep == location][typ_poi].rolling(7).mean()
+    fig.add_scatter(
+        name='Moyenne mobile sur 7 jours',
+        x = google_mm.index,
+        y = google_mm,
+        row=2, col=1,
+        line=dict(color='red', dash='dot')
     )
 
     fig.add_scatter(
-        name='Passages aux urgences', 
-        x = urg_mm['pass'][location].index,
-        y = urg_mm['pass'][location],
-        row=1, col=1,
-        marker_color=urg_mm['pass'][location], 
-        marker_colorscale='Plasma_r'
+        name=poi_labels[typ_poi],
+        x=google[google.num_dep == location].index,
+        y=google[google.num_dep == location][typ_poi],
+        showlegend = False,
+        opacity = 0.8,
+        row=2, col=1,
+        line=dict(color='grey', width=1)
+    )
+
+    fig.update_xaxes(
+        dtick = 'M1', 
+        tickformat = '%b\n%Y'
     )
 
     fig.update_layout(
             width = 800,
-            height = 600
+            height = 800,
     )
-    
 
-    # extract places : retail, grocery, parks...
-    places, _ = zip(*google.columns)
-    for place in set(places):
-        fig.add_scatter(
-            name=place,
-            x=google[place][location].index,
-            y=google[place][location],
-            row=2, col=1
-        )
+    # ajout des périodes de confinement
+    date_conf1 = (conf_dates.loc[location,'conf1_start'], conf_dates.loc[location,'conf1_stop'])
+    date_conf2 = (conf_dates.loc[location,'conf2_start'], conf_dates.loc[location,'conf2_stop'])
+    fig.add_vrect(x0=date_conf1[0], x1=date_conf1[1], fillcolor='blue', opacity=0.1, name='Confinement')
+    fig.add_vrect(x0=date_conf2[0], x1=date_conf2[1], fillcolor='blue', opacity=0.1)
+    # check si conf3 existe et utililse la date du jour comme date de fin
+    if not conf_dates.loc[location,'conf3_start'] is pd.NaT:
+        date_conf3 = (conf_dates.loc[location,'conf3_start'], max(urg_mm.index))
+        fig.add_vrect(x0=date_conf3[0], x1=date_conf3[1], fillcolor='blue', opacity=0.1)
     
     return fig
 
 dep_reg = load_regions()
-urg_mm = load_urgences()
+urg = load_urgences()
 google = load_google()
 #apple = load_apple()
 
-fig = add_graph('75', urg_mm, google)
+loc_labels = dict(zip(dep_reg.num_dep, dep_reg.departement))
 
-st.plotly_chart(fig)
+urg_labels = dict([('acte', 'Actes SOS Médecin pour suspicion de Covid'),
+                   ('pass', 'Passage aux urgences pour suspicion de Covid')]) 
 
-print(fig)
+poi_labels = dict([
+    ('retail', 'retail & recreation'), 
+    ('grocery', 'grocery & pharmacy'), 
+    ('parks', 'parks'), 
+    ('transit', 'transit stations'),
+    ('workplaces', 'workplaces'),
+    ('residential', 'residential')
+])
+st.header('Consultations pour suspicion de Covid et données de mobilité pour la France par département')
+
+# sélection du département
+loc = st.sidebar.selectbox('Département', list(loc_labels.keys()), index=75, format_func=lambda x: loc_labels[x])
+
+# sélection du type de consultation Urgences ou SOS Médecins
+typ_consult = st.sidebar.radio('Type de consultation', 
+        list(urg_labels.keys()), index=1, format_func=lambda x: urg_labels[x])
+
+# sélection du type de POI google
+typ_poi = st.sidebar.selectbox('Lieux fréquentés (catégories Google)', list(poi_labels.keys()),
+                        format_func=lambda x: poi_labels[x])
 
 
 
-# fig = make_subplots(rows=3, cols=1,
-#                     shared_xaxes=True, #                     vertical_spacing=0.05,
-#                     subplot_titles=['Actes SOS Médecin', 'Google Mobility', 'Apple Mobility'])
+fig = add_graph(loc, urg, typ_consult, google, typ_poi)
+st.plotly_chart(fig, use_container_width=False)
 
-# fig.add_scatter(name='actes SOS Médecin', 
-#                 x=urg_mm['acte']['75'].index, y=urg_mm['acte']['75'],
-#                 row=1, col=1)
-# fig.add_scatter(x=[fig.data[0].x[-1]], y=[fig.data[0].y[-1]],
-#                 mode='lines + text', text='Actes', textposition='middle right')
-# fig.add_scatter(name='passage aux urgences', x=urg_mm['pass']['75'].index, y=urg_mm['pass']['75'], row=1, col=1)
+st.sidebar.write("[@FranklinMaillot](http://www.twitter.com/FranklinMaillot)")
+st.sidebar.write("Sources :  \n[Santé Publique France](https://www.data.gouv.fr/fr/datasets/donnees-des-urgences-hospitalieres-et-de-sos-medecins-relatives-a-lepidemie-de-covid-19/#_)  \n[Rapports de mobilité Google](https://www.google.com/covid19/mobility/)")
 
-# # google mobility data
-# fig.add_scatter(name='retail', x=google['retail']['75'].index, y=google['retail']['75'], row=2, col=1)
-# fig.add_scatter(name='transit', x=google['transit']['75'].index, y=google['transit']['75'], row=2, col=1)
-# fig.add_scatter(name='grocery', x=google['grocery']['75'].index, y=google['grocery']['75'], row=2, col=1)
 
-# fig.add_scatter(name='transit', x=apple['transit']['Paris'].index, y=apple['transit']['Paris'], row=3, col=1)
-# fig.add_scatter(name='driving', x=apple['driving']['Paris'].index, y=apple['driving']['Paris'], row=3, col=1)
-# fig.add_scatter(name='walking', x=apple['walking']['Paris'].index, y=apple['walking']['Paris'], row=3, col=1)
-
-# fig.update_layout(width=800, height=800, title_text='Actes SOS médecins et mobilité')
-# fig.update_xaxes(
-#     dtick='M1', 
-#     tickformat='%b\n%Y', 
-#     ticklabelmode='period'
-# )
+# '''
+# TODO
+# X moyenne mobile pour urg
+# X changer les couleurs
+# X améliorer l'axe des dates
+# X permettre la sélection du département et des lieux à comparer
+# X Ajouter les dates de confinements
+# X charger les départements offline
+# - automatiser la mise à jour des fichiers
+# - ajouter les données de polution
+# - ajouter les données apple
+# '''

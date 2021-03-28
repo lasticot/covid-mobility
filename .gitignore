@@ -1,9 +1,7 @@
-data/
+data/archives/
+data/Region_*/
 dep_reg.xlsx
 Scripts/launch.json
-Scripts/modules/
-Scripts/plotly_test.ipynb
-Scripts/plotly_tests.py
 *.sw*
 *.ipynb*
 .vscode/
