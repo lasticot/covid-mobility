@@ -4,6 +4,8 @@ Tableau de bord interactif réalisé avec [Streamlit](http://streamlit.io/) pour
 
 Le nombre de consultations Covid est la variable qui est susceptible d'être le plus rapidement influencée par un changement de comportement. Le nombre de tests positifs étant très dépendant du nombre de tests réalisés (très faible lors de la première vague) et le nombre d'hospitalisations est influencé à plus long terme.   
 
+[Lien vers l'application](https://share.streamlit.io/lasticot/covid-mobility/Scripts/covid_mobility.py)
+
 Les données de mobilité sont mises à disposition par [Google](https://www.google.com/covid19/mobility/). 
 Les données de consultation Covid SOS Médecin et passage aux urgences sont celles de [Santé Publique France](https://www.data.gouv.fr/fr/datasets/donnees-des-urgences-hospitalieres-et-de-sos-medecins-relatives-a-lepidemie-de-covid-19/#_)
 
