@@ -2,7 +2,6 @@
 # coding: utf-8
 
 # %%
-from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -11,7 +10,8 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 # %%
 
-DIR = Path.cwd().parent
+DIR = Path.cwd()
+print(DIR)
 
 DATES_CONF1 = ['2020-03-17', '2020-05-11']
 DATE_CONF2 = ['2020-10-30', '2020-12-15']
@@ -21,7 +21,7 @@ DATE_CONF3 = ['2020-10-30', '2020-12-15']
 @st.cache
 def load_urgences():
     global dep_reg
-    urg = pd.read_csv(DIR / 'data/urgences.csv', delimiter=';', dtype={'dep':'object'}, usecols=['dep', 'date_de_passage', 'nbre_pass_corona', 'nbre_acte_corona'], 
+    urg = pd.read_csv(DIR / 'data' / 'urgences.csv', delimiter=';', dtype={'dep':'object'}, usecols=['dep', 'date_de_passage', 'nbre_pass_corona', 'nbre_acte_corona'], 
                     parse_dates=['date_de_passage'], infer_datetime_format=True, dayfirst=True)
     urg.rename(columns={'date_de_passage':'date', 'nbre_pass_corona':'pass', 'nbre_acte_corona':'acte'}, inplace=True)
     # grouper par département (diviser par  2, car le fichier contient par classe d'âge et une ligne de total)
@@ -33,7 +33,7 @@ def load_urgences():
 @st.cache
 def load_google():
     global dep_reg
-    google = pd.read_csv(DIR / 'data/2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13],
+    google = pd.read_csv(DIR / 'data'/ '2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13],
                         parse_dates=['date'], infer_datetime_format=True, dayfirst=True)
     # suppression des colonnes inutiles
     google.drop(['country_region_code', 'country_region', 'sub_region_1', 'metro_area'], axis=1, inplace = True)
@@ -46,38 +46,18 @@ def load_google():
     temp.set_index('date', inplace=True)
     return temp
 
-@st.cache
-def load_apple():
-    global dep_reg
-    apple = pd.read_csv(DIR / 'data/applemobilitytrends-2021-03-16.csv', dtype={'alternative_name':'object'})
-    # on ne garde que la France
-    apple = apple[apple.country == 'France'].copy()
-    # unpivot car les dates sont en colonnes
-    apple = apple.melt(id_vars=['geo_type', 'region', 'transportation_type', 'alternative_name', 'sub-region', 'country'], var_name='date', value_name='mobility' )
-    apple.reset_index(inplace=True)
-    apple.date = pd.to_datetime(apple.date, infer_datetime_format=True, dayfirst=True)
-    # on trim la mention 'Region' et on françise les noms anglais
-    apple['region'] = apple['region'].str.rsplit(' Region', 1, False).str.get(0)
-    apple['region'].replace({'Lower Normandy':'Basse Normandie', 'Upper Normany':'Haute Normandie', 'Burgundy':'Bourgogne', 'Corsica':'Corse','Brittany':'Bretagne', 'Lower':'Basse', 'Upper':'Haute', 'Picardy':'Picardie'}, inplace=True)
-    # date en index
-    apple.set_index('date', inplace=True)
-    # regions en colonnes et suppression des autres colonnes géographiques
-    return apple
-
-# ### Préparation du fichier tests
-# test = pd.read_csv('/data/tests.csv', delimiter=';', dtype={0:'object'}, parse_dates=['jour'], infer_datetime_format=True, dayfirst=True)
 
 # %%
 @st.cache
 def load_regions():
     # Liste des départements et régions
-    dep_reg = pd.read_csv(DIR / 'data/dep_reg.csv')
+    dep_reg = pd.read_csv(DIR / 'data' / 'dep_reg.csv')
     return dep_reg
 
 # %%
 @st.cache
 def load_confinements():
-    conf_dates = pd.read_excel(DIR / 'data/confinement_dates.xlsx', engine='openpyxl', dtype={'Dep': str},  
+    conf_dates = pd.read_excel(DIR / 'data'/ 'confinement_dates.xlsx', engine='openpyxl', dtype={'Dep': str},  
                             parse_dates=[1,2,3,4,5,6]) 
     conf_dates.set_index('Dep', inplace=True)
     return conf_dates
@@ -90,8 +70,6 @@ def add_graph(location, urg, typ_consult, google, typ_poi):
 
     urg_title, = f"{urg_labels[typ_consult]} - {loc_labels[location]} <br> moyenne mobile sur 7 jours",
     google_title, = f"Données de fréquentation pour '{poi_labels[typ_poi]}' - {loc_labels[location]}",
-    print(urg_title)
-    print(google_title)
 
     fig = make_subplots(rows=2, cols=1,
                     shared_xaxes=True,
@@ -190,16 +168,3 @@ st.plotly_chart(fig, use_container_width=False)
 st.sidebar.write("[@FranklinMaillot](http://www.twitter.com/FranklinMaillot)")
 st.sidebar.write("Sources :  \n[Santé Publique France](https://www.data.gouv.fr/fr/datasets/donnees-des-urgences-hospitalieres-et-de-sos-medecins-relatives-a-lepidemie-de-covid-19/#_)  \n[Rapports de mobilité Google](https://www.google.com/covid19/mobility/)")
 
-
-# '''
-# TODO
-# X moyenne mobile pour urg
-# X changer les couleurs
-# X améliorer l'axe des dates
-# X permettre la sélection du département et des lieux à comparer
-# X Ajouter les dates de confinements
-# X charger les départements offline
-# - automatiser la mise à jour des fichiers
-# - ajouter les données de polution
-# - ajouter les données apple
-# '''
