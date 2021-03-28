@@ -3,16 +3,15 @@
 
 # %%
 from datetime import date
+from pathlib import Path
+
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import streamlit as st
-import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 # %%
-# from .modules.create_graph import add_graph
+
+DIR = Path.cwd().parent
 
 DATES_CONF1 = ['2020-03-17', '2020-05-11']
 DATE_CONF2 = ['2020-10-30', '2020-12-15']
@@ -22,7 +21,7 @@ DATE_CONF3 = ['2020-10-30', '2020-12-15']
 @st.cache
 def load_urgences():
     global dep_reg
-    urg = pd.read_csv('../data/urgences.csv', delimiter=';', dtype={'dep':'object'}, usecols=['dep', 'date_de_passage', 'nbre_pass_corona', 'nbre_acte_corona'], 
+    urg = pd.read_csv(DIR / 'data/urgences.csv', delimiter=';', dtype={'dep':'object'}, usecols=['dep', 'date_de_passage', 'nbre_pass_corona', 'nbre_acte_corona'], 
                     parse_dates=['date_de_passage'], infer_datetime_format=True, dayfirst=True)
     urg.rename(columns={'date_de_passage':'date', 'nbre_pass_corona':'pass', 'nbre_acte_corona':'acte'}, inplace=True)
     # grouper par département (diviser par  2, car le fichier contient par classe d'âge et une ligne de total)
@@ -34,7 +33,7 @@ def load_urgences():
 @st.cache
 def load_google():
     global dep_reg
-    google = pd.read_csv('../data/2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13],
+    google = pd.read_csv(DIR / 'data/2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13],
                         parse_dates=['date'], infer_datetime_format=True, dayfirst=True)
     # suppression des colonnes inutiles
     google.drop(['country_region_code', 'country_region', 'sub_region_1', 'metro_area'], axis=1, inplace = True)
@@ -50,7 +49,7 @@ def load_google():
 @st.cache
 def load_apple():
     global dep_reg
-    apple = pd.read_csv('../data/applemobilitytrends-2021-03-16.csv', dtype={'alternative_name':'object'})
+    apple = pd.read_csv(DIR / 'data/applemobilitytrends-2021-03-16.csv', dtype={'alternative_name':'object'})
     # on ne garde que la France
     apple = apple[apple.country == 'France'].copy()
     # unpivot car les dates sont en colonnes
@@ -72,13 +71,13 @@ def load_apple():
 @st.cache
 def load_regions():
     # Liste des départements et régions
-    dep_reg = pd.read_csv('../data/dep_reg.csv')
+    dep_reg = pd.read_csv(DIR / 'data/dep_reg.csv')
     return dep_reg
 
 # %%
 @st.cache
 def load_confinements():
-    conf_dates = pd.read_excel('../data/confinement_dates.xlsx', engine='openpyxl', dtype={'Dep': str},  
+    conf_dates = pd.read_excel(DIR / 'data/confinement_dates.xlsx', engine='openpyxl', dtype={'Dep': str},  
                             parse_dates=[1,2,3,4,5,6]) 
     conf_dates.set_index('Dep', inplace=True)
     return conf_dates
