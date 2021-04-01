@@ -33,8 +33,11 @@ def load_urgences():
 @st.cache
 def load_google():
     global dep_reg
-    google = pd.read_csv(DIR / 'data'/ '2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13],
+    google1 = pd.read_csv(DIR / 'data'/ '2020_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14],
                         parse_dates=['date'], infer_datetime_format=True, dayfirst=True)
+    google2 = pd.read_csv(DIR / 'data'/ '2021_FR_Region_Mobility_Report.csv', usecols=[0, 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14],
+                        parse_dates=['date'], infer_datetime_format=True, dayfirst=True)
+    google = google1.append(google2)
     # suppression des colonnes inutiles
     google.drop(['country_region_code', 'country_region', 'sub_region_1', 'metro_area'], axis=1, inplace = True)
     google.columns = ['dep', 'date', 'retail', 'grocery', 'parks', 'transit', 'workplaces', 'residential']
@@ -77,7 +80,7 @@ def add_graph(location, urg, typ_consult, google, typ_poi):
                     subplot_titles=[urg_title, google_title])
  
     # calcul de la moyenne mobile à la location choisie
-    urg_mm = urg[urg.dep == loc].rolling(7).mean()
+    urg_mm = urg[urg.dep == location].rolling(7).mean()
 
     fig.add_scatter(
         name=urg_labels[typ_consult], 
@@ -129,6 +132,20 @@ def add_graph(location, urg, typ_consult, google, typ_poi):
     
     return fig
 
+
+# %%
+
+# dep_reg = load_regions()
+# urg = load_urgences()
+# google = load_google()
+
+# fig = add_graph('75', urg, 'pass', google, 'retail')
+
+# fig.show()
+
+
+
+# %%
 dep_reg = load_regions()
 urg = load_urgences()
 google = load_google()
