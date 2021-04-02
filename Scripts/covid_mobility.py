@@ -133,19 +133,7 @@ def add_graph(location, urg, typ_consult, google, typ_poi):
     return fig
 
 
-# %%
 
-# dep_reg = load_regions()
-# urg = load_urgences()
-# google = load_google()
-
-# fig = add_graph('75', urg, 'pass', google, 'retail')
-
-# fig.show()
-
-
-
-# %%
 dep_reg = load_regions()
 urg = load_urgences()
 google = load_google()
@@ -164,7 +152,7 @@ poi_labels = dict([
     ('workplaces', 'workplaces'),
     ('residential', 'residential')
 ])
-st.header('Consultations pour suspicion de Covid et données de mobilité pour la France par département au 26 mars 2021')
+st.header('Consultations pour suspicion de Covid et données de mobilité pour la France par département au 29 mars 2021')
 
 # sélection du département
 loc = st.sidebar.selectbox('Département', list(loc_labels.keys()), index=75, format_func=lambda x: loc_labels[x])
